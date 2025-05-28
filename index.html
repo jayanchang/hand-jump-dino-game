@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>🐰 Hand Jump Dino Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/addons/p5.sound.min.js"></script>
+  <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #ededed;
+      text-align: center;
+    }
+
+    h1 {
+      margin-top: 30px;
+      color: #333;
+    }
+
+    #game-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 20px;
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    video {
+      display: block;
+      margin-top: 10px;
+    }
+
+    .instructions {
+      margin: 40px auto;
+      max-width: 600px;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      font-size: 16px;
+      line-height: 1.6;
+      color: #333;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>🐰 Hand Jump Dino Game</h1>
+
+  <div id="game-container">
+    <!-- Canvas + webcam inserted by p5.js -->
+  </div>
+
+  <div class="instructions">
+    <h2>How to Play</h2>
+    <p>
+      1. Position your arm horizontally in front on the webcam!<br />
+      2. Move your wrist upwards to make the bunny jump!<br />
+      (remember, don't over do it, the detector is sensitive!)<br />
+      3. Avoid the traps and gain points over time.<br />
+      4. The game speeds up every 500 points — good luck!
+    </p>
+  </div>
+
+  <script src="sketch.js"></script>
+</body>
+</html>

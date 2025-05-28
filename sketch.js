@@ -1,19 +1,21 @@
-let video;
-let handpose;
-let predictions = [];
+let video, handpose, predictions = [];
 
-let backgroundImg;
-let cloudImg;
-let clouds = [];
+let backgroundImg, cloudImg, playerImg, trap1, trap2;
+let jumpSound, deathSound, levelUpSound;
+let clouds = [], traps = [];
 
-let bgX = 0;
-let score = 0;
+let bgX = 0, score = 0, level = 0;
 let isGameOver = false;
-let restartButton;
-
-let level = 0;
 let trapSpeed = 5;
 let lastLevelAnnounced = -1;
+let lastDetectedTime = -1000;
+let previousY = null;
+let trapFrame = 0, trapFrameTimer = 0;
+let lastPredictionTime = 0;
+let predictionInterval = 80; // More frequent prediction
+let handCooldown = 400;      // Avoid double jumping
+
+let restartButton, restartShown = false;
 
 let player = {
   x: 100,
@@ -23,45 +25,34 @@ let player = {
   isJumping: false
 };
 
-let gravity = 0.96;
-let jumpForce = -23;
-let previousY = null;
-
-let playerImg;
-let trap1, trap2;
-let trapFrame = 0;
-let trapFrameTimer = 0;
-let traps = [];
-
-let jumpSound, deathSound, levelUpSound;
-let handFlashColor = [0, 255, 0];
-let lastDetectedTime = -1000;
+const gravity = 0.96;
+const jumpForce = -22;
 
 function preload() {
-  playerImg = loadImage("assets/rabbit-bw.gif");
-  trap1 = loadImage("assets/trap-1.png");
-  trap2 = loadImage("assets/trap-2.png");
-  backgroundImg = loadImage("assets/background.png");
-  cloudImg = loadImage("assets/cloud.png");
+  playerImg = loadImage("rabbit-bw.gif");
+  trap1 = loadImage("trap-1.png");
+  trap2 = loadImage("trap-2.png");
+  backgroundImg = loadImage("background.png");
+  cloudImg = loadImage("cloud.png");
 
-  jumpSound = loadSound("assets/jump-sound.mp3");
-  deathSound = loadSound("assets/death-sound.mp3");
-  levelUpSound = loadSound("assets/level-up-sound.mp3");
+  jumpSound = loadSound("jump-sound.mp3");
+  deathSound = loadSound("death-sound.mp3");
+  levelUpSound = loadSound("level-up-sound.mp3");
 }
 
-
 function setup() {
-  createCanvas(800, 400);
+  let cnv = createCanvas(800, 400);
+  cnv.parent("game-container");
 
   video = createCapture(VIDEO);
-  video.size(width, height);
+  video.size(200, 150);
   video.hide();
-  video.style('transform', 'scaleX(-1)');
+  video.parent("game-container");
 
-  handpose = ml5.handpose(video, { flipHorizontal: true }, modelReady);
+  handpose = ml5.handpose(video, { flipHorizontal: true }, () => {
+    console.log("Handpose loaded");
+  });
   handpose.on("predict", results => predictions = results);
-
-  setTimeout(spawnTraps, 3000);
 
   for (let i = 0; i < 3; i++) {
     clouds.push({
@@ -73,20 +64,18 @@ function setup() {
   }
 
   restartButton = createButton('Restart');
-  restartButton.position(width / 2 - 40, height / 2 + 40);
+  restartButton.parent("game-container");
   restartButton.size(80, 30);
   restartButton.mousePressed(() => location.reload());
   restartButton.hide();
-}
 
-function modelReady() {
-  console.log("Handpose model loaded");
+  setTimeout(spawnTraps, 2000);
 }
 
 function draw() {
   background(250);
 
-  // Scrolling background
+  // Scroll background
   image(backgroundImg, bgX, height - backgroundImg.height);
   image(backgroundImg, bgX + backgroundImg.width, height - backgroundImg.height);
   if (!isGameOver) {
@@ -94,7 +83,7 @@ function draw() {
     if (bgX <= -backgroundImg.width) bgX = 0;
   }
 
-  // Clouds
+  // Draw clouds
   for (let c of clouds) {
     image(cloudImg, c.x, c.y, c.size, c.size);
     if (!isGameOver) {
@@ -106,18 +95,17 @@ function draw() {
     }
   }
 
-  // Webcam feed (top left corner)
+  // Draw mirrored webcam aligned to top-left
   push();
-  translate(320, 0);
+  translate(video.width, 0);
   scale(-1, 1);
-  image(video, 0, 0, 320, 240);
-  drawHandDots(); // 🟢 draw landmarks over camera
+  image(video, 0, 0, video.width, video.height);
   pop();
 
-  // Score and Level
+  // Score and level system
   if (!isGameOver) {
     score++;
-    let currentLevel = floor(score / 1000);
+    let currentLevel = floor(score / 500);
     if (currentLevel > lastLevelAnnounced) {
       trapSpeed++;
       levelUpSound.play();
@@ -126,21 +114,29 @@ function draw() {
     }
   }
 
+  // HUD
   fill(0);
   textSize(20);
   textAlign(RIGHT, TOP);
-  text("Score: " + nf(score, 5), width - 20, 20);
-  text("Level: " + level, width - 20, 50);
+  text(`Score: ${nf(score, 5)}`, width - 20, 20);
+  text(`Level: ${level}`, width - 20, 50);
 
   handlePlayer();
   updateTraps();
   handleHandGestures();
 
+  // Game Over UI
   if (isGameOver) {
     fill(255, 0, 0);
     textSize(32);
     textAlign(CENTER, CENTER);
     text("Game Over", width / 2, height / 2);
+
+    if (!restartShown) {
+      restartButton.position(canvas.offsetLeft + width / 2 - 40, canvas.offsetTop + height / 2 + 30);
+      restartButton.show();
+      restartShown = true;
+    }
   }
 }
 
@@ -149,20 +145,18 @@ function handlePlayer() {
     player.velocityY += gravity;
     player.y += player.velocityY;
   }
-
   if (player.y >= 310) {
     player.y = 310;
     player.velocityY = 0;
     player.isJumping = false;
   }
-
   imageMode(CENTER);
   image(playerImg, player.x, player.y, player.size, player.size);
 }
 
 function updateTraps() {
   trapFrameTimer++;
-  if (trapFrameTimer > 10) {
+  if (trapFrameTimer > 5) {
     trapFrame = (trapFrame + 1) % 2;
     trapFrameTimer = 0;
   }
@@ -182,7 +176,6 @@ function updateTraps() {
       !isGameOver
     ) {
       isGameOver = true;
-      restartButton.show();
       deathSound.play();
     }
 
@@ -210,6 +203,10 @@ function spawnTraps() {
 }
 
 function handleHandGestures() {
+  let now = millis();
+  if (now - lastPredictionTime < predictionInterval) return;
+  lastPredictionTime = now;
+
   if (predictions.length > 0) {
     let hand = predictions[0];
     let wristY = hand.landmarks[0][1];
@@ -218,34 +215,19 @@ function handleHandGestures() {
 
     if (previousY !== null) {
       let speedY = previousY - handY;
-      if (speedY > 6 && handY < previousY && !player.isJumping && !isGameOver) {
+      if (
+        speedY > 3.5 &&
+        handY < previousY &&
+        !player.isJumping &&
+        !isGameOver &&
+        now - lastDetectedTime > handCooldown
+      ) {
         player.velocityY = jumpForce;
         player.isJumping = true;
         jumpSound.play();
-
-        // Flash orange when jump is triggered
-        lastDetectedTime = millis();
-        handFlashColor = [255, 165, 0];
+        lastDetectedTime = now;
       }
     }
     previousY = handY;
-  }
-}
-
-function drawHandDots() {
-  let currentTime = millis();
-
-  // Revert to green after 500ms
-  if (currentTime - lastDetectedTime > 500) {
-    handFlashColor = [0, 255, 0];
-  }
-
-  for (let hand of predictions) {
-    for (let i = 0; i < hand.landmarks.length; i++) {
-      let [x, y] = hand.landmarks[i];
-      fill(handFlashColor);
-      noStroke();
-      ellipse(x, y, 8, 8); // already inside mirrored space
-    }
   }
 }

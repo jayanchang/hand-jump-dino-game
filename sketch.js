@@ -1,4 +1,4 @@
-// Optimized Hand Jump Dino Game with reduced lag
+// Hand-Jump Dino Game (Optimized with responsive jump)
 let video, handpose, predictions = [];
 
 let backgroundImg, cloudImg, playerImg, trap1, trap2;
@@ -6,15 +6,15 @@ let jumpSound, deathSound, levelUpSound;
 let clouds = [], traps = [];
 
 let bgX = 0, score = 0, level = 0;
-let isGameOver = false;
+let isGameOver = false, gameStarted = false;
 let trapSpeed = 5;
 let lastLevelAnnounced = -1;
 let lastDetectedTime = -1000;
 let previousY = null;
 let trapFrame = 0, trapFrameTimer = 0;
 let lastPredictionTime = 0;
-let predictionInterval = 120; // Less frequent prediction for performance
-let handCooldown = 400;      // Cooldown to prevent jump spam
+let predictionInterval = 80;
+let handCooldown = 400;
 
 let restartButton, restartShown = false;
 
@@ -46,11 +46,9 @@ function setup() {
   cnv.parent("game-container");
 
   video = createCapture(VIDEO);
-  video.size(160, 120); // Slightly smaller for performance
+  video.size(200, 150);
   video.hide();
   video.parent("game-container");
-
-  noSmooth(); // Disable canvas smoothing for a small perf boost
 
   handpose = ml5.handpose(video, { flipHorizontal: true }, () => {
     console.log("Handpose loaded");
@@ -71,25 +69,21 @@ function setup() {
   restartButton.size(80, 30);
   restartButton.mousePressed(() => location.reload());
   restartButton.hide();
-
-  setTimeout(spawnTraps, 2000);
 }
 
 function draw() {
   background(250);
 
-  // Scroll background
   image(backgroundImg, bgX, height - backgroundImg.height);
   image(backgroundImg, bgX + backgroundImg.width, height - backgroundImg.height);
-  if (!isGameOver) {
+  if (!isGameOver && gameStarted) {
     bgX -= 2;
     if (bgX <= -backgroundImg.width) bgX = 0;
   }
 
-  // Draw clouds
   for (let c of clouds) {
     image(cloudImg, c.x, c.y, c.size, c.size);
-    if (!isGameOver) {
+    if (!isGameOver && gameStarted) {
       c.x -= c.speed;
       if (c.x + c.size < 0) {
         c.x = width + random(50, 100);
@@ -98,15 +92,20 @@ function draw() {
     }
   }
 
-  // Draw mirrored webcam aligned to top-left
   push();
   translate(video.width, 0);
   scale(-1, 1);
   image(video, 0, 0, video.width, video.height);
   pop();
 
-  // Score and level system
-  if (!isGameOver) {
+  if (!gameStarted) {
+    fill(50);
+    textSize(24);
+    textAlign(CENTER, CENTER);
+    text("✋ Position your arm horizontally, move your wrist upwards to begin", width / 2, height / 2);
+  }
+
+  if (!isGameOver && gameStarted) {
     score++;
     let currentLevel = floor(score / 500);
     if (currentLevel > lastLevelAnnounced) {
@@ -117,7 +116,6 @@ function draw() {
     }
   }
 
-  // HUD
   fill(0);
   textSize(20);
   textAlign(RIGHT, TOP);
@@ -143,7 +141,7 @@ function draw() {
 }
 
 function handlePlayer() {
-  if (!isGameOver) {
+  if (!isGameOver && gameStarted) {
     player.velocityY += gravity;
     player.y += player.velocityY;
   }
@@ -157,6 +155,8 @@ function handlePlayer() {
 }
 
 function updateTraps() {
+  if (!gameStarted) return;
+
   trapFrameTimer++;
   if (trapFrameTimer > 5) {
     trapFrame = (trapFrame + 1) % 2;
@@ -228,6 +228,11 @@ function handleHandGestures() {
         player.isJumping = true;
         jumpSound.play();
         lastDetectedTime = now;
+
+        if (!gameStarted) {
+          gameStarted = true;
+          setTimeout(spawnTraps, 1200);
+        }
       }
     }
     previousY = handY;

@@ -1,3 +1,4 @@
+// Optimized Hand Jump Dino Game with reduced lag
 let video, handpose, predictions = [];
 
 let backgroundImg, cloudImg, playerImg, trap1, trap2;
@@ -12,8 +13,8 @@ let lastDetectedTime = -1000;
 let previousY = null;
 let trapFrame = 0, trapFrameTimer = 0;
 let lastPredictionTime = 0;
-let predictionInterval = 80; // More frequent prediction
-let handCooldown = 400;      // Avoid double jumping
+let predictionInterval = 120; // Less frequent prediction for performance
+let handCooldown = 400;      // Cooldown to prevent jump spam
 
 let restartButton, restartShown = false;
 
@@ -45,9 +46,11 @@ function setup() {
   cnv.parent("game-container");
 
   video = createCapture(VIDEO);
-  video.size(200, 150);
+  video.size(160, 120); // Slightly smaller for performance
   video.hide();
   video.parent("game-container");
+
+  noSmooth(); // Disable canvas smoothing for a small perf boost
 
   handpose = ml5.handpose(video, { flipHorizontal: true }, () => {
     console.log("Handpose loaded");
@@ -125,7 +128,6 @@ function draw() {
   updateTraps();
   handleHandGestures();
 
-  // Game Over UI
   if (isGameOver) {
     fill(255, 0, 0);
     textSize(32);
